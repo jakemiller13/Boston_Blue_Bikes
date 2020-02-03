@@ -5,6 +5,10 @@ Created on Mon Feb  3 11:18:59 2020
 @author: jmiller
 """
 
+# TODO take random sample of entire population
+# TODO figure out optimal cluster number
+# TODO rerun over entire population
+
 import pandas as pd
 import numpy as np
 import os
@@ -92,3 +96,12 @@ plt.plot(cluster_range, sse, '-o')
 plt.xlabel('Number of clusters')
 plt.ylabel('Sum of squared distance')
 plt.show()
+
+# 5 centroids appears best
+best_k = KMeans(init = 'k-means++',
+                n_clusters = 5,
+                n_init = 10)
+best_k.fit(df)
+
+best_k.cluster_centers_
+best_k.labels_
