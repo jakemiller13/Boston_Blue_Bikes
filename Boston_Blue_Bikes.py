@@ -5,9 +5,9 @@ Created on Mon Feb  3 11:18:59 2020
 @author: jmiller
 """
 
-# TODO take random sample of entire population
-# TODO figure out optimal cluster number
-# TODO rerun over entire population
+# TODO histogram of starting hours
+# TODO histogram of trip duration
+# TODO limit to +2 stds above mean
 
 import pandas as pd
 import numpy as np
@@ -16,7 +16,9 @@ from sklearn import metrics
 from sklearn.cluster import KMeans
 import matplotlib.pyplot as plt
 
-# Load data
+#############
+# Load data #
+#############
 def load_data():
     '''
     Loads and returns data. Only run if necessary
@@ -41,31 +43,49 @@ except NameError:
 except ValueError:
     pass
 
-# Add columns to capture categorical time
-df['start_hour'] = np.nan
-
 # Capture hour of ride start
 df['start_hour'] = df['starttime'].apply(lambda x: pd.to_datetime(x).hour)
 
-# Only look at January to see if KMeans runs to completion
-df = df[df['starttime'] < np.datetime64('2019-01-10')]
-
-
-###########
-# k-means #
-###########
-
-# Columns to use in clustering - all categorical
+#######################
+# Features to look at #
+#######################
 features = ['tripduration',
             'start_hour',
             'start station latitude',
             'start station longitude']
 
-# One-hot encode categorical variables
-# df = pd.get_dummies(df, columns = categories)
-# features = []
-# for i in categories:
-#     features.extend([j for j in df.columns if i in j])
+##########################
+# Descriptive statistics #
+##########################
+print('\n--- Descriptive Statistics ---')
+print(df[features].describe())
+
+###################
+# Remove outliers #
+###################
+plt.figure()
+plt.hist(df[features]['tripduration'])
+plt.xlabel('Trip Duration')
+plt.ylabel('Count')
+plt.show()
+
+std = np.std(df['tripduration'])
+mean = np.mean(df['tripduration'])
+
+outliers = df.shape[0] - df[df['tripduration'] < mean + 2 * std]\
+                           [features].shape[0]
+print('\n--- Number of outliers removed: {} ---'.format(outliers))
+df = df[df['tripduration'] < mean + 2 * std]
+
+#############
+# 5% sample #
+#############
+samples = np.random.choice(df.shape[0], df.shape[0]//20)
+sample_df = df.iloc[samples]
+
+#############################
+# k-means run on sample set #
+#############################
 
 # Setup metrics
 sse = []
@@ -75,16 +95,18 @@ cluster_range = np.arange(2, 10)
 # Train multiple k-means and test silhouette coefficients, elbow
 for i in cluster_range:
     print('\n...Fitting {} clusters...'.format(i))
-    kmeans = KMeans(init = 'k-means++',
-                    n_clusters = i,
+    kmeans = KMeans(n_clusters = i,
+                    init = 'k-means++',
                     n_init = 10,
+                    max_iter = 300,
+                    tol = 0.0001,
                     verbose = 0)
-    kmeans.fit(df[features])
+    kmeans.fit(sample_df[features])
     
-    score = metrics.silhouette_score(df[features],
+    score = metrics.silhouette_score(sample_df[features],
                                       kmeans.labels_,
                                       metric = 'euclidean',
-                                      sample_size = len(df[features]))
+                                      sample_size = len(sample_df[features]))
     scores.append(score)
     sse.append(kmeans.inertia_)
     print('Number of clusters:', i)
@@ -97,11 +119,18 @@ plt.xlabel('Number of clusters')
 plt.ylabel('Sum of squared distance')
 plt.show()
 
-# 5 centroids appears best
-best_k = KMeans(init = 'k-means++',
-                n_clusters = 5,
-                n_init = 10)
-best_k.fit(df)
+#####################
+# Best: 4 centroids #
+#####################
+best_k = KMeans(n_clusters = 4,
+                init = 'k-means++',
+                n_init = 10,
+                max_iter = 300,
+                tol = 0.0001,
+                verbose = 1)
+best_k.fit(df[features])
 
-best_k.cluster_centers_
-best_k.labels_
+print('--- Cluster centers ---\n{}'.format(
+      pd.DataFrame(data = best_k.cluster_centers_, columns = features)))
+# best_k.labels_
+np.unique(best_k.labels_, return_counts = True)
