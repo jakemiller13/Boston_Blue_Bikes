@@ -58,7 +58,7 @@ features = ['tripduration',
 # Descriptive statistics #
 ##########################
 print('\n--- Descriptive Statistics ---')
-print(df[features].describe())
+print(df[features].describe().to_string())
 
 ###################
 # Remove outliers #
@@ -130,7 +130,43 @@ best_k = KMeans(n_clusters = 4,
                 verbose = 1)
 best_k.fit(df[features])
 
+centers = best_k.cluster_centers_
+clusters, cluster_counts = np.unique(best_k.labels_, return_counts = True)
+
 print('--- Cluster centers ---\n{}'.format(
-      pd.DataFrame(data = best_k.cluster_centers_, columns = features)))
-# best_k.labels_
-np.unique(best_k.labels_, return_counts = True)
+      pd.DataFrame(data = centers, columns = features)))
+print('\n--- Cluster counts ---\n{}'.format(
+      pd.DataFrame(data = cluster_counts,
+                   columns = ['Counts'],
+                   index = clusters)))
+
+##################
+# Starting hours #
+##################
+plt.figure()
+n, bins, patches = plt.hist(df['start_hour'], bins = 23)
+patches[8].set_fc('r')
+patches[17].set_fc('r')
+plt.grid()
+plt.xlabel('Starting hour of ride')
+plt.ylabel('Counts')
+plt.show()
+
+################
+# Top stations #
+################
+# Most used starting/endings stations
+start_station, start_station_counts = np.unique(df['start station id'], 
+                                                return_counts = True)
+end_station, end_station_counts = np.unique(df['end station id'], 
+                                            return_counts = True)
+top_start_station = start_station[np.argmax(start_station_counts)]
+top_end_station = end_station[np.argmax(end_station_counts)]
+
+print('--- Most Used Start Station ---\n{}'.format(
+      df[df['start station id'] == top_start_station]
+           ['start station name'].iloc[0]))
+
+print('\n--- Most Used End Station ---\n{}'.format(
+      df[df['end station id'] == top_end_station]
+           ['end station name'].iloc[0]))
