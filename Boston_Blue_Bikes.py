@@ -5,15 +5,14 @@ Created on Mon Feb  3 11:18:59 2020
 @author: jmiller
 """
 
-# TODO histogram of starting hours
-# TODO histogram of trip duration
-# TODO limit to +2 stds above mean
+# TODO function for plotting histogram after removing outliers
 
 import pandas as pd
 import numpy as np
 import os
 from sklearn import metrics
 from sklearn.cluster import KMeans
+from sklearn.preprocessing import MinMaxScaler
 import matplotlib.pyplot as plt
 
 #############
@@ -51,8 +50,7 @@ df['start_hour'] = df['starttime'].apply(lambda x: pd.to_datetime(x).hour)
 #######################
 features = ['tripduration',
             'start_hour',
-            'start station latitude',
-            'start station longitude']
+            'birth year']
 
 ##########################
 # Descriptive statistics #
@@ -64,24 +62,57 @@ print(df[features].describe().to_string())
 # Remove outliers #
 ###################
 plt.figure()
-plt.hist(df[features]['tripduration'])
-plt.xlabel('Trip Duration')
+plt.hist(df['tripduration'])
+plt.title('Trip Duration (before removing outliers')
+plt.xlabel('Duration (seconds)')
 plt.ylabel('Count')
 plt.show()
 
+# Crazy numbers. Remove anything over a day
 std = np.std(df['tripduration'])
 mean = np.mean(df['tripduration'])
 
-outliers = df.shape[0] - df[df['tripduration'] < mean + 2 * std]\
-                           [features].shape[0]
-print('\n--- Number of outliers removed: {} ---'.format(outliers))
-df = df[df['tripduration'] < mean + 2 * std]
+outliers = df[df['tripduration'] > 86400]
+
+print('\n--- Number of outliers removed: {} ---'.format(outliers.shape[0]))
+df = df.drop(outliers.index).reset_index()
+
+plt.figure()
+plt.hist(df['tripduration'], bins = 23)
+plt.title('Trip Duration (after removing 1st outliers)')
+plt.xlabel('Duration (seconds)')
+plt.ylabel('Count')
+plt.show()
+
+# Still crazy. Only look at hours with at least 1000 data points per hour
+counts, bin_edges = np.histogram(df['tripduration']/3600,
+                                 bins = np.arange(0, 24))
+print('Hours with >1000 data points: {}'.format(np.where(counts > 1000)[0]))
+
+outliers = df[df['tripduration'] > 3 * 60 * 60]
+
+print('\n--- Number of outliers removed: {} ---'.format(outliers.shape[0]))
+df = df.drop(outliers.index).reset_index()
+
+plt.figure()
+plt.hist(df['tripduration'], bins = 25)
+plt.title('Trip Duration (after removing outliers)')
+plt.xlabel('Duration (seconds)')
+plt.ylabel('Count')
+plt.show()
+
+##################
+# Scale features #
+##################
+scaler = MinMaxScaler()
+scaled_df = pd.DataFrame(data = scaler.fit_transform(df[features]),
+                         columns = features)
 
 #############
 # 5% sample #
 #############
-samples = np.random.choice(df.shape[0], df.shape[0]//20)
-sample_df = df.iloc[samples]
+samples = np.random.choice(scaled_df.shape[0], scaled_df.shape[0]//20)
+sample_df = scaled_df.iloc[samples]
 
 #############################
 # k-means run on sample set #
@@ -127,7 +158,7 @@ best_k = KMeans(n_clusters = 4,
                 n_init = 10,
                 max_iter = 300,
                 tol = 0.0001,
-                verbose = 1)
+                verbose = 0)
 best_k.fit(df[features])
 
 centers = best_k.cluster_centers_
