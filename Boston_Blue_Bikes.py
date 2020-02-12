@@ -6,6 +6,7 @@ Created on Mon Feb  3 11:18:59 2020
 """
 
 # TODO function for plotting histogram after removing outliers
+# TODO scatterplot matrix not looking great
 
 import pandas as pd
 import numpy as np
@@ -14,6 +15,7 @@ from sklearn import metrics
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import MinMaxScaler
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 #############
 # Load data #
@@ -75,7 +77,7 @@ mean = np.mean(df['tripduration'])
 outliers = df[df['tripduration'] > 86400]
 
 print('\n--- Number of outliers removed: {} ---'.format(outliers.shape[0]))
-df = df.drop(outliers.index).reset_index()
+df = df.drop(outliers.index).reset_index(drop = True)
 
 plt.figure()
 plt.hist(df['tripduration'], bins = 23)
@@ -87,12 +89,12 @@ plt.show()
 # Still crazy. Only look at hours with at least 1000 data points per hour
 counts, bin_edges = np.histogram(df['tripduration']/3600,
                                  bins = np.arange(0, 24))
-print('Hours with >1000 data points: {}'.format(np.where(counts > 1000)[0]))
+print('\nHours with >1000 data points: {}'.format(np.where(counts > 1000)[0]))
 
 outliers = df[df['tripduration'] > 3 * 60 * 60]
 
-print('\n--- Number of outliers removed: {} ---'.format(outliers.shape[0]))
-df = df.drop(outliers.index).reset_index()
+print('--- Number of outliers removed: {} ---'.format(outliers.shape[0]))
+df = df.drop(outliers.index).reset_index(drop = True)
 
 plt.figure()
 plt.hist(df['tripduration'], bins = 25)
@@ -164,7 +166,7 @@ best_k.fit(df[features])
 centers = best_k.cluster_centers_
 clusters, cluster_counts = np.unique(best_k.labels_, return_counts = True)
 
-print('--- Cluster centers ---\n{}'.format(
+print('\n--- Cluster centers ---\n{}'.format(
       pd.DataFrame(data = centers, columns = features)))
 print('\n--- Cluster counts ---\n{}'.format(
       pd.DataFrame(data = cluster_counts,
@@ -201,3 +203,8 @@ print('--- Most Used Start Station ---\n{}'.format(
 print('\n--- Most Used End Station ---\n{}'.format(
       df[df['end station id'] == top_end_station]
            ['end station name'].iloc[0]))
+
+######################
+# Scatterplot Matrix #
+######################
+sns.pairplot(df[features])
