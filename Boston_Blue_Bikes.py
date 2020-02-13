@@ -9,6 +9,10 @@ Created on Mon Feb  3 11:18:59 2020
 # TODO scatterplot matrix not looking great
 # TODO find top X stations for departure and arrival
 # TODO use start time + trip duration to determine when bikes are dropped off
+# TODO find top rental days
+# TODO deep dive into most active station - do bikes depart more than arrive?
+# TODO when do they arrive/leave
+# TODO bar chart of gender
 
 import pandas as pd
 import numpy as np
@@ -18,10 +22,15 @@ from sklearn.cluster import KMeans
 from sklearn.preprocessing import MinMaxScaler
 import matplotlib.pyplot as plt
 import seaborn as sns
+import plotly.express as px
+from plotly.offline import plot
 
-#############
-# Load data #
-#############
+# Set seed
+np.random.seed(42)
+
+#####################
+# Utility Functions #
+#####################
 def load_data():
     '''
     Loads and returns data. Only run if necessary
@@ -36,22 +45,80 @@ def load_data():
     df = df.reset_index(drop = True)
     return df
 
-try:
-    if df.empty:
-        df = load_data()
-    else:
-        pass
-except NameError:
-    df = load_data()
-except ValueError:
-    pass
+def get_weekday(day_num):
+    '''
+    Parameters
+    ----------
+    day_num: int
+        Returns string of day of week
 
-# Capture hour of ride start
-df['start_hour'] = df['starttime'].apply(lambda x: pd.to_datetime(x).hour)
+    Returns
+    -------
+    Day of week (string)
 
+    '''
+    day = {0: 'Monday',
+           1: 'Tuesday',
+           2: 'Wednesday',
+           3: 'Thursday',
+           4: 'Friday',
+           5: 'Saturday',
+           6: 'Sunday'}
+    return day[int(day_num)]
+
+def get_station_ids(df):
+    '''
+    Parameters
+    ----------
+    df: dataframe to gather unique stations ids
+
+    Returns
+    -------
+    dict: {station ID: station name}
+
+    '''
+    id_df = df[['start station id', 'start station name']].\
+                drop_duplicates().reset_index(drop = True)
+    id_dict = {id_df['start station id'].loc[i]: 
+               id_df['start station name'].loc[i]
+               for i in range(id_df.shape[0])}
+    return id_dict
+    
 #######################
-# Features to look at #
+# Setup other columns #
 #######################
+def setup_dataframe(df):
+    '''
+    Parameters
+    ----------
+    df: input dataframe.
+        Adds new columns for start_hour, start_day
+
+    Returns
+    -------
+    Adjusted dataframe
+    
+    '''
+    # Ride start hour
+    print('\n... Collecting starting hour...')
+    df['start_hour'] = df['starttime'].apply(lambda x: x.hour)
+    
+    # Ride start day
+    print('\n... Collecting start day...')
+    df['start_day'] = df['starttime'].apply(lambda x: x.weekday())
+    
+    return df
+
+######################################
+# LOAD DATA - MOVE TO END EVENTUALLY #
+######################################
+
+df = load_data()
+df = setup_dataframe(df)
+
+####################################
+# Quantitative features to look at #
+####################################
 features = ['tripduration',
             'start_hour',
             'birth year']
@@ -115,7 +182,7 @@ scaled_df = pd.DataFrame(data = scaler.fit_transform(df[features]),
 #############
 # 5% sample #
 #############
-samples = np.random.choice(scaled_df.shape[0], scaled_df.shape[0]//20)
+samples = np.random.choice(scaled_df.shape[0], scaled_df.shape[0]//100)
 sample_df = scaled_df.iloc[samples]
 
 #############################
@@ -175,38 +242,86 @@ print('\n--- Cluster counts ---\n{}'.format(
                    columns = ['Counts'],
                    index = clusters)))
 
-##################
-# Starting hours #
-##################
-plt.figure()
-n, bins, patches = plt.hist(df['start_hour'], bins = 23)
-patches[8].set_fc('r')
-patches[17].set_fc('r')
-plt.grid()
-plt.xlabel('Starting hour of ride')
-plt.ylabel('Counts')
-plt.show()
-
 ################
 # Top stations #
 ################
-# Most used starting/endings stations
-start_station, start_station_counts = np.unique(df['start station id'], 
-                                                return_counts = True)
-end_station, end_station_counts = np.unique(df['end station id'], 
-                                            return_counts = True)
-top_start_station = start_station[np.argmax(start_station_counts)]
-top_end_station = end_station[np.argmax(end_station_counts)]
+def top_stations(df, n):
+    '''
+    Parameters
+    ----------
+    df: input dataframe
+    n: number of top stations to look at
+        Finds top starting and ending stations
+        Plots top starting and ending stations
 
-print('--- Most Used Start Station ---\n{}'.format(
-      df[df['start station id'] == top_start_station]
-           ['start station name'].iloc[0]))
-
-print('\n--- Most Used End Station ---\n{}'.format(
-      df[df['end station id'] == top_end_station]
-           ['end station name'].iloc[0]))
-
+    Returns
+    -------
+    N/A
+    
+    '''
+    station_ids = get_station_ids(df)
+    
+    top_start_stations = df['start station id'].value_counts()[:n]
+    top_end_stations = df['end station id'].value_counts()[:n]
+    
+    print('\n--- Top {} Starting Stations ---'.format(n))
+    [print('{}. {}'.format(
+     i, station_ids[j])) for i, j in enumerate(top_start_stations.index, 1)]
+    
+    print('\n--- Top {} Ending Stations ---'.format(n))
+    [print('{}. {}'.format(
+     i, station_ids[j])) for i, j in enumerate(top_end_stations.index, 1)]
+    
 ######################
 # Scatterplot Matrix #
 ######################
-sns.pairplot(df[features])
+sns.pairplot(sample_df[features])
+
+######################
+# Most traveled days #
+######################
+def most_traveled_days(df):
+    '''
+    Parameters
+    ----------
+    df: adjusted dataframe with start_days column added
+
+    Returns
+    -------
+    histogram of most traveled days
+    '''
+    days, rides = np.unique(df['start_day'], return_counts = True)
+    fig = px.bar(x = [get_weekday(day) for day in days],
+                 y = rides,
+                 color = rides)
+    fig.update_layout(title = 'Total Rides per Day',
+                      xaxis_title = 'Weekday',
+                      yaxis_title = 'Total Rides')
+    plot(fig)
+
+#######################
+# Most traveled times #
+#######################
+def most_traveled_times(df):
+    '''
+    Parameters
+    ----------
+    df: adjusted dataframe with start_hour column added
+
+    Returns
+    -------
+    histogram of most traveled hours
+    '''
+    hours, rides = np.unique(df['start_hour'], return_counts = True)
+    fig = px.bar(x = hours,
+                 y = rides,
+                 color = rides)
+    fig.update_layout(title = 'Total Rides per Hour',
+                      xaxis_title = 'Hour of the Day',
+                      yaxis_title = 'Total Rides')
+    plot(fig)
+
+#################
+# DATA ANALYSIS #
+#################
+df = load_data()
