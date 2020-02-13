@@ -7,6 +7,8 @@ Created on Mon Feb  3 11:18:59 2020
 
 # TODO function for plotting histogram after removing outliers
 # TODO scatterplot matrix not looking great
+# TODO find top X stations for departure and arrival
+# TODO use start time + trip duration to determine when bikes are dropped off
 
 import pandas as pd
 import numpy as np
