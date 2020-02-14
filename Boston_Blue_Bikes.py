@@ -48,8 +48,8 @@ def load_data():
             df = df.append(pd.read_csv('Data/' + file,
                                        parse_dates = ['starttime',
                                                       'stoptime']))
-    
     df = df.reset_index(drop = True)
+    
     return df, df.copy()
 
 def get_weekday(day_num):
@@ -71,7 +71,35 @@ def get_weekday(day_num):
            4: 'Friday',
            5: 'Saturday',
            6: 'Sunday'}
+    
     return day[int(day_num)]
+
+def get_month(month_num):
+    '''
+    Parameters
+    ----------
+    month_num: int
+        Returns string of month
+
+    Returns
+    -------
+    Month (string)
+
+    '''
+    month = {1: 'January',
+             2: 'February',
+             3: 'March',
+             4: 'April',
+             5: 'May',
+             6: 'June',
+             7: 'July',
+             8: 'August',
+             9: 'September',
+             10: 'October',
+             11: 'November',
+             12: 'December'}
+    
+    return month[int(month_num)]
 
 def get_station_ids(df):
     '''
@@ -89,6 +117,7 @@ def get_station_ids(df):
     id_dict = {id_df['start station id'].loc[i]: 
                id_df['start station name'].loc[i]
                for i in range(id_df.shape[0])}
+    
     return id_dict
     
 #######################
@@ -296,18 +325,18 @@ def most_traveled_months(df):
     '''
     Parameters
     ----------
-    df: adjusted dataframe with start_days column added
+    df: adjusted dataframe with start_month column added
 
     Returns
     -------
-    bar chart of most traveled days
+    bar chart of most traveled months
     '''
-    days, rides = np.unique(df['start_day'], return_counts = True)
-    fig = px.bar(x = [get_weekday(day) for day in days],
+    months, rides = np.unique(df['start_month'], return_counts = True)
+    fig = px.bar(x = [get_month(month) for month in months],
                  y = rides,
                  color = rides)
-    fig.update_layout(title = 'Total Rides per Day',
-                      xaxis_title = 'Weekday',
+    fig.update_layout(title = 'Total Rides per Month',
+                      xaxis_title = 'Month',
                       yaxis_title = 'Total Rides')
     plot(fig)
 
@@ -399,6 +428,7 @@ print(df[features].describe().to_string())
 # sns.pairplot(sample_df[features])
 
 top_stations(df, 5)
+most_traveled_months(df)
 most_traveled_days(df)
 most_traveled_times(df)
 rides_by_gender(df)
