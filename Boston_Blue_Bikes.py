@@ -5,14 +5,11 @@ Created on Mon Feb  3 11:18:59 2020
 @author: jmiller
 """
 
-# TODO function for plotting histogram after removing outliers
 # TODO scatterplot matrix not looking great
-# TODO find top X stations for departure and arrival
 # TODO use start time + trip duration to determine when bikes are dropped off
 # TODO find top rental days
 # TODO deep dive into most active station - do bikes depart more than arrive?
 # TODO when do they arrive/leave
-# TODO bar chart of gender
 
 import pandas as pd
 import numpy as np
@@ -33,17 +30,27 @@ np.random.seed(42)
 #####################
 def load_data():
     '''
-    Loads and returns data. Only run if necessary
+    Parameters
+    ----------
+    None
+        Loads data into dataframe and returns df and df_copy
+
+    Returns
+    -------
+    df, copy of df
+
     '''
     df = pd.DataFrame()
     
     for file in os.listdir('Data'):
-        print('...Reading file "{}"...'.format(file))
-        df = df.append(pd.read_csv('Data/' + file,
-                                   parse_dates = ['starttime', 'stoptime']))
+        if '2019' in file:
+            print('...Reading file "{}"...'.format(file))
+            df = df.append(pd.read_csv('Data/' + file,
+                                       parse_dates = ['starttime',
+                                                      'stoptime']))
     
     df = df.reset_index(drop = True)
-    return df
+    return df, df.copy()
 
 def get_weekday(day_num):
     '''
@@ -100,21 +107,18 @@ def setup_dataframe(df):
     
     '''
     # Ride start hour
-    print('\n... Collecting starting hour...')
+    print('\n...Collecting starting hour...')
     df['start_hour'] = df['starttime'].apply(lambda x: x.hour)
     
     # Ride start day
-    print('\n... Collecting start day...')
+    print('\n...Collecting start day...')
     df['start_day'] = df['starttime'].apply(lambda x: x.weekday())
     
+    # Ride start month
+    print('\n...Collecting starting month...')
+    df['start_month'] = df['starttime'].apply(lambda x: x.month)
+    
     return df
-
-######################################
-# LOAD DATA - MOVE TO END EVENTUALLY #
-######################################
-
-df = load_data()
-df = setup_dataframe(df)
 
 ####################################
 # Quantitative features to look at #
@@ -123,124 +127,137 @@ features = ['tripduration',
             'start_hour',
             'birth year']
 
-##########################
-# Descriptive statistics #
-##########################
-print('\n--- Descriptive Statistics ---')
-print(df[features].describe().to_string())
+def remove_outliers(df):
+    '''
+    Parameters
+    ----------
+    df: input dataframe.
+        Removes trips >24 hours
+        Removes rides with birth year <1920
+        Respect to anyone 100+ still riding but...
 
-###################
-# Remove outliers #
-###################
-plt.figure()
-plt.hist(df['tripduration'])
-plt.title('Trip Duration (before removing outliers')
-plt.xlabel('Duration (seconds)')
-plt.ylabel('Count')
-plt.show()
-
-# Crazy numbers. Remove anything over a day
-std = np.std(df['tripduration'])
-mean = np.mean(df['tripduration'])
-
-outliers = df[df['tripduration'] > 86400]
-
-print('\n--- Number of outliers removed: {} ---'.format(outliers.shape[0]))
-df = df.drop(outliers.index).reset_index(drop = True)
-
-plt.figure()
-plt.hist(df['tripduration'], bins = 23)
-plt.title('Trip Duration (after removing 1st outliers)')
-plt.xlabel('Duration (seconds)')
-plt.ylabel('Count')
-plt.show()
-
-# Still crazy. Only look at hours with at least 1000 data points per hour
-counts, bin_edges = np.histogram(df['tripduration']/3600,
-                                 bins = np.arange(0, 24))
-print('\nHours with >1000 data points: {}'.format(np.where(counts > 1000)[0]))
-
-outliers = df[df['tripduration'] > 3 * 60 * 60]
-
-print('--- Number of outliers removed: {} ---'.format(outliers.shape[0]))
-df = df.drop(outliers.index).reset_index(drop = True)
-
-plt.figure()
-plt.hist(df['tripduration'], bins = 25)
-plt.title('Trip Duration (after removing outliers)')
-plt.xlabel('Duration (seconds)')
-plt.ylabel('Count')
-plt.show()
-
-##################
-# Scale features #
-##################
-scaler = MinMaxScaler()
-scaled_df = pd.DataFrame(data = scaler.fit_transform(df[features]),
-                         columns = features)
-
-#############
-# 5% sample #
-#############
-samples = np.random.choice(scaled_df.shape[0], scaled_df.shape[0]//100)
-sample_df = scaled_df.iloc[samples]
-
-#############################
-# k-means run on sample set #
-#############################
-
-# Setup metrics
-sse = []
-scores = []
-cluster_range = np.arange(2, 10)
-
-# Train multiple k-means and test silhouette coefficients, elbow
-for i in cluster_range:
-    print('\n...Fitting {} clusters...'.format(i))
-    kmeans = KMeans(n_clusters = i,
-                    init = 'k-means++',
-                    n_init = 10,
-                    max_iter = 300,
-                    tol = 0.0001,
-                    verbose = 0)
-    kmeans.fit(sample_df[features])
+    Returns
+    -------
+    Trimmed dataframe
     
-    score = metrics.silhouette_score(sample_df[features],
-                                      kmeans.labels_,
-                                      metric = 'euclidean',
-                                      sample_size = len(sample_df[features]))
-    scores.append(score)
-    sse.append(kmeans.inertia_)
-    print('Number of clusters:', i)
-    print('Silhouette score:', score)
-    print('Inertia:', kmeans.inertia_)
+    '''
+    long_trips = df[df['tripduration'] > 24 * 60 * 60]
+    too_old = df[df['birth year'] < 1920]
+    df = df.drop(index = long_trips.index.append(too_old.index))
+    return df
 
-plt.figure()
-plt.plot(cluster_range, sse, '-o')
-plt.xlabel('Number of clusters')
-plt.ylabel('Sum of squared distance')
-plt.show()
+# ###################
+# # Remove outliers #
+# ###################
+# plt.figure()
+# plt.hist(df['tripduration'])
+# plt.title('Trip Duration (before removing outliers')
+# plt.xlabel('Duration (seconds)')
+# plt.ylabel('Count')
+# plt.show()
 
-#####################
-# Best: 4 centroids #
-#####################
-best_k = KMeans(n_clusters = 4,
-                init = 'k-means++',
-                n_init = 10,
-                max_iter = 300,
-                tol = 0.0001,
-                verbose = 0)
-best_k.fit(df[features])
+# # Crazy numbers. Remove anything over a day
+# std = np.std(df['tripduration'])
+# mean = np.mean(df['tripduration'])
 
-centers = best_k.cluster_centers_
-clusters, cluster_counts = np.unique(best_k.labels_, return_counts = True)
+# outliers = df[df['tripduration'] > 86400]
 
-print('\n--- Cluster centers ---\n{}'.format(
-      pd.DataFrame(data = centers, columns = features)))
-print('\n--- Cluster counts ---\n{}'.format(
-      pd.DataFrame(data = cluster_counts,
-                   columns = ['Counts'],
-                   index = clusters)))
+# print('\n--- Number of outliers removed: {} ---'.format(outliers.shape[0]))
+# df = df.drop(outliers.index).reset_index(drop = True)
+
+# plt.figure()
+# plt.hist(df['tripduration'], bins = 23)
+# plt.title('Trip Duration (after removing 1st outliers)')
+# plt.xlabel('Duration (seconds)')
+# plt.ylabel('Count')
+# plt.show()
+
+# # Still crazy. Only look at hours with at least 1000 data points per hour
+# counts, bin_edges = np.histogram(df['tripduration']/3600,
+#                                  bins = np.arange(0, 24))
+# print('\nHours with >1000 data points: {}'.format(np.where(counts > 1000)[0]))
+
+# outliers = df[df['tripduration'] > 3 * 60 * 60]
+
+# print('--- Number of outliers removed: {} ---'.format(outliers.shape[0]))
+# df = df.drop(outliers.index).reset_index(drop = True)
+
+# plt.figure()
+# plt.hist(df['tripduration'], bins = 25)
+# plt.title('Trip Duration (after removing outliers)')
+# plt.xlabel('Duration (seconds)')
+# plt.ylabel('Count')
+# plt.show()
+
+# ##################
+# # Scale features #
+# ##################
+# scaler = MinMaxScaler()
+# scaled_df = pd.DataFrame(data = scaler.fit_transform(df[features]),
+#                          columns = features)
+
+# #############
+# # 5% sample #
+# #############
+# samples = np.random.choice(scaled_df.shape[0], scaled_df.shape[0]//100)
+# sample_df = scaled_df.iloc[samples]
+
+# #############################
+# # k-means run on sample set #
+# #############################
+
+# # Setup metrics
+# sse = []
+# scores = []
+# cluster_range = np.arange(2, 10)
+
+# # Train multiple k-means and test silhouette coefficients, elbow
+# for i in cluster_range:
+#     print('\n...Fitting {} clusters...'.format(i))
+#     kmeans = KMeans(n_clusters = i,
+#                     init = 'k-means++',
+#                     n_init = 10,
+#                     max_iter = 300,
+#                     tol = 0.0001,
+#                     verbose = 0)
+#     kmeans.fit(sample_df[features])
+    
+#     score = metrics.silhouette_score(sample_df[features],
+#                                       kmeans.labels_,
+#                                       metric = 'euclidean',
+#                                       sample_size = len(sample_df[features]))
+#     scores.append(score)
+#     sse.append(kmeans.inertia_)
+#     print('Number of clusters:', i)
+#     print('Silhouette score:', score)
+#     print('Inertia:', kmeans.inertia_)
+
+# plt.figure()
+# plt.plot(cluster_range, sse, '-o')
+# plt.xlabel('Number of clusters')
+# plt.ylabel('Sum of squared distance')
+# plt.show()
+
+# #####################
+# # Best: 4 centroids #
+# #####################
+# best_k = KMeans(n_clusters = 4,
+#                 init = 'k-means++',
+#                 n_init = 10,
+#                 max_iter = 300,
+#                 tol = 0.0001,
+#                 verbose = 0)
+# best_k.fit(df[features])
+
+# centers = best_k.cluster_centers_
+# clusters, cluster_counts = np.unique(best_k.labels_, return_counts = True)
+
+# print('\n--- Cluster centers ---\n{}'.format(
+#       pd.DataFrame(data = centers, columns = features)))
+# print('\n--- Cluster counts ---\n{}'.format(
+#       pd.DataFrame(data = cluster_counts,
+#                    columns = ['Counts'],
+#                    index = clusters)))
 
 ################
 # Top stations #
@@ -271,11 +288,28 @@ def top_stations(df, n):
     print('\n--- Top {} Ending Stations ---'.format(n))
     [print('{}. {}'.format(
      i, station_ids[j])) for i, j in enumerate(top_end_stations.index, 1)]
-    
+
 ######################
-# Scatterplot Matrix #
+# Most traveled days #
 ######################
-sns.pairplot(sample_df[features])
+def most_traveled_months(df):
+    '''
+    Parameters
+    ----------
+    df: adjusted dataframe with start_days column added
+
+    Returns
+    -------
+    bar chart of most traveled days
+    '''
+    days, rides = np.unique(df['start_day'], return_counts = True)
+    fig = px.bar(x = [get_weekday(day) for day in days],
+                 y = rides,
+                 color = rides)
+    fig.update_layout(title = 'Total Rides per Day',
+                      xaxis_title = 'Weekday',
+                      yaxis_title = 'Total Rides')
+    plot(fig)
 
 ######################
 # Most traveled days #
@@ -288,7 +322,7 @@ def most_traveled_days(df):
 
     Returns
     -------
-    histogram of most traveled days
+    bar chart of most traveled days
     '''
     days, rides = np.unique(df['start_day'], return_counts = True)
     fig = px.bar(x = [get_weekday(day) for day in days],
@@ -310,7 +344,7 @@ def most_traveled_times(df):
 
     Returns
     -------
-    histogram of most traveled hours
+    bar chart of most traveled hours
     '''
     hours, rides = np.unique(df['start_hour'], return_counts = True)
     fig = px.bar(x = hours,
@@ -321,7 +355,50 @@ def most_traveled_times(df):
                       yaxis_title = 'Total Rides')
     plot(fig)
 
+###################
+# Rides by gender #
+###################
+def rides_by_gender(df):
+    '''
+    Parameters
+    ----------
+    df: adjusted dataframe
+
+    Returns
+    -------
+    bar chart of rides by gender
+    '''
+    gender, rides = np.unique(df['gender'], return_counts = True)
+    fig = px.bar(x = gender,
+                 y = rides,
+                 color = rides)
+    fig.update_layout(title = 'Total Rides per Gender',
+                      xaxis_title = 'Gender',
+                      yaxis_title = 'Total Rides')
+    plot(fig)
+    
 #################
 # DATA ANALYSIS #
 #################
-df = load_data()
+##############################
+# Load data, setup dataframe #
+##############################
+df, df_copy = load_data()
+df = setup_dataframe(df)
+remove_outliers(df)
+
+##########################
+# Descriptive statistics #
+##########################
+print('\n--- Descriptive Statistics ---')
+print(df[features].describe().to_string())
+
+######################
+# Scatterplot Matrix #
+######################
+# sns.pairplot(sample_df[features])
+
+top_stations(df, 5)
+most_traveled_days(df)
+most_traveled_times(df)
+rides_by_gender(df)
