@@ -439,52 +439,69 @@ top_end_stations = df['end station id'].value_counts()[:25]
 top_stations = set(top_start_stations.index.append(top_end_stations.index))
 
 grouped = df.groupby(['start station id', 'end station id']).count()\
-                     ['tripduration'][:500]
-grouped = grouped[grouped > 10]
+                     ['tripduration']
+grouped = grouped.nlargest(100)
 trip_direction = grouped.index
 
-node_names = set()
+station_numbers = set()
 edges = []
-for i in trip_direction:
-    for j in top_stations:
-        if j in i:
-            edges.append(i)
-            node_names.update(i)
+for i in grouped.index:
+    edges.append(i)
+    station_numbers.update(i)
+
+station_names = get_station_ids(df)
+labels = ['{}: {}'.format(num, station_names[num])
+          for num in sorted(list(station_numbers))]
 
 G = nx.DiGraph()
-G.add_nodes_from(node_names)
+G.add_nodes_from(station_numbers)
 G.add_edges_from(edges)
 
-pos = nx.layout.spring_layout(G)
-#node_sizes = [3 + 10 * i for i in range(len(G))]
-node_sizes = [1 for i in range(len(G))]
+pos = nx.layout.circular_layout(G)
 M = G.number_of_edges()
 edge_colors = range(2, M + 2)
 edge_alphas = [(5 + i) / (M + 4) for i in range(M)]
-plt.figure(figsize = (10, 10))
+
+fig = plt.figure(figsize = (15, 15))
 nodes = nx.draw_networkx_nodes(G,
                                pos,
-                               node_size = node_sizes,
-                               node_color='blue')
+                               node_size = 5,
+                               node_color = 'black')
 edges = nx.draw_networkx_edges(G,
                                pos,
-                               node_size = node_sizes,
-                               arrowstyle = '->',
-                               arrowsize=10,
+                               node_size = 5,
+                               arrowstyle = '-|>',
+                               arrowsize = 20,
                                edge_color = edge_colors,
                                edge_cmap = plt.cm.rainbow,
                                width = 2)
+
 for i in range(M):
     edges[i].set_alpha(edge_alphas[i])
 pc = mpl.collections.PatchCollection(edges,
                                      cmap = plt.cm.rainbow)
 pc.set_array(edge_colors)
-plt.colorbar(pc)
+cbar = plt.colorbar(pc,
+                    fraction = 0.04,
+                    pad = 0.01)
+cbar.ax.tick_params(labelsize = 20) 
 nx.draw_networkx_labels(G,
                         pos,
-                        #labels = nodes, ## TODO needs to be dictionary
-                        font_size = 16)
+                        font_size = 20)
 
 ax = plt.gca()
 ax.set_axis_off()
+leg = ax.legend(labels = labels,
+                loc='upper center',
+                bbox_to_anchor = (0.5, -0.05),
+                shadow = True,
+                ncol = 2,
+                handlelength = 0,
+                handletextpad = 0,
+                fancybox = True)
+for item in leg.legendHandles:
+    item.set_visible(False)
+plt.axis('equal')
+plt.title('Top 100 Blue Bike Routes',
+          fontdict = {'fontsize': 25})
 plt.show()
