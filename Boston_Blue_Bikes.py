@@ -14,13 +14,11 @@ Created on Mon Feb  3 11:18:59 2020
 import pandas as pd
 import numpy as np
 import os
-from sklearn import metrics
-from sklearn.cluster import KMeans
-from sklearn.preprocessing import MinMaxScaler
-import matplotlib.pyplot as plt
-import seaborn as sns
+import networkx as nx
 import plotly.express as px
 from plotly.offline import plot
+import matplotlib as mpl
+import matplotlib.pyplot as plt
 
 # Set seed
 np.random.seed(42)
@@ -432,3 +430,61 @@ most_traveled_months(df)
 most_traveled_days(df)
 most_traveled_times(df)
 rides_by_gender(df)
+
+##################
+# DIRECTED GRAPH #
+##################
+top_start_stations = df['start station id'].value_counts()[:25]
+top_end_stations = df['end station id'].value_counts()[:25]
+top_stations = set(top_start_stations.index.append(top_end_stations.index))
+
+grouped = df.groupby(['start station id', 'end station id']).count()\
+                     ['tripduration'][:500]
+grouped = grouped[grouped > 10]
+trip_direction = grouped.index
+
+node_names = set()
+edges = []
+for i in trip_direction:
+    for j in top_stations:
+        if j in i:
+            edges.append(i)
+            node_names.update(i)
+
+G = nx.DiGraph()
+G.add_nodes_from(node_names)
+G.add_edges_from(edges)
+
+pos = nx.layout.spring_layout(G)
+#node_sizes = [3 + 10 * i for i in range(len(G))]
+node_sizes = [1 for i in range(len(G))]
+M = G.number_of_edges()
+edge_colors = range(2, M + 2)
+edge_alphas = [(5 + i) / (M + 4) for i in range(M)]
+plt.figure(figsize = (10, 10))
+nodes = nx.draw_networkx_nodes(G,
+                               pos,
+                               node_size = node_sizes,
+                               node_color='blue')
+edges = nx.draw_networkx_edges(G,
+                               pos,
+                               node_size = node_sizes,
+                               arrowstyle = '->',
+                               arrowsize=10,
+                               edge_color = edge_colors,
+                               edge_cmap = plt.cm.rainbow,
+                               width = 2)
+for i in range(M):
+    edges[i].set_alpha(edge_alphas[i])
+pc = mpl.collections.PatchCollection(edges,
+                                     cmap = plt.cm.rainbow)
+pc.set_array(edge_colors)
+plt.colorbar(pc)
+nx.draw_networkx_labels(G,
+                        pos,
+                        #labels = nodes, ## TODO needs to be dictionary
+                        font_size = 16)
+
+ax = plt.gca()
+ax.set_axis_off()
+plt.show()
