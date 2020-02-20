@@ -147,13 +147,6 @@ def setup_dataframe(df):
     
     return df
 
-####################################
-# Quantitative features to look at #
-####################################
-features = ['tripduration',
-            'start_hour',
-            'birth year']
-
 def remove_outliers(df):
     '''
     Parameters
@@ -413,6 +406,13 @@ def rides_by_gender(df):
 df, df_copy = load_data()
 df = setup_dataframe(df)
 remove_outliers(df)
+
+####################################
+# Quantitative features to look at #
+####################################
+features = ['tripduration',
+            'start_hour',
+            'birth year']
 
 ##########################
 # Descriptive statistics #
