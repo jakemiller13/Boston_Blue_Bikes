@@ -5,12 +5,6 @@ Created on Mon Feb  3 11:18:59 2020
 @author: jmiller
 """
 
-# TODO scatterplot matrix not looking great
-# TODO use start time + trip duration to determine when bikes are dropped off
-# TODO find top rental days
-# TODO deep dive into most active station - do bikes depart more than arrive?
-# TODO when do they arrive/leave
-
 import pandas as pd
 import numpy as np
 import os
@@ -166,123 +160,10 @@ def remove_outliers(df):
     df = df.drop(index = long_trips.index.append(too_old.index))
     return df
 
-# ###################
-# # Remove outliers #
-# ###################
-# plt.figure()
-# plt.hist(df['tripduration'])
-# plt.title('Trip Duration (before removing outliers')
-# plt.xlabel('Duration (seconds)')
-# plt.ylabel('Count')
-# plt.show()
-
-# # Crazy numbers. Remove anything over a day
-# std = np.std(df['tripduration'])
-# mean = np.mean(df['tripduration'])
-
-# outliers = df[df['tripduration'] > 86400]
-
-# print('\n--- Number of outliers removed: {} ---'.format(outliers.shape[0]))
-# df = df.drop(outliers.index).reset_index(drop = True)
-
-# plt.figure()
-# plt.hist(df['tripduration'], bins = 23)
-# plt.title('Trip Duration (after removing 1st outliers)')
-# plt.xlabel('Duration (seconds)')
-# plt.ylabel('Count')
-# plt.show()
-
-# # Still crazy. Only look at hours with at least 1000 data points per hour
-# counts, bin_edges = np.histogram(df['tripduration']/3600,
-#                                  bins = np.arange(0, 24))
-# print('\nHours with >1000 data points: {}'.format(np.where(counts > 1000)[0]))
-
-# outliers = df[df['tripduration'] > 3 * 60 * 60]
-
-# print('--- Number of outliers removed: {} ---'.format(outliers.shape[0]))
-# df = df.drop(outliers.index).reset_index(drop = True)
-
-# plt.figure()
-# plt.hist(df['tripduration'], bins = 25)
-# plt.title('Trip Duration (after removing outliers)')
-# plt.xlabel('Duration (seconds)')
-# plt.ylabel('Count')
-# plt.show()
-
-# ##################
-# # Scale features #
-# ##################
-# scaler = MinMaxScaler()
-# scaled_df = pd.DataFrame(data = scaler.fit_transform(df[features]),
-#                          columns = features)
-
-# #############
-# # 5% sample #
-# #############
-# samples = np.random.choice(scaled_df.shape[0], scaled_df.shape[0]//100)
-# sample_df = scaled_df.iloc[samples]
-
-# #############################
-# # k-means run on sample set #
-# #############################
-
-# # Setup metrics
-# sse = []
-# scores = []
-# cluster_range = np.arange(2, 10)
-
-# # Train multiple k-means and test silhouette coefficients, elbow
-# for i in cluster_range:
-#     print('\n...Fitting {} clusters...'.format(i))
-#     kmeans = KMeans(n_clusters = i,
-#                     init = 'k-means++',
-#                     n_init = 10,
-#                     max_iter = 300,
-#                     tol = 0.0001,
-#                     verbose = 0)
-#     kmeans.fit(sample_df[features])
-    
-#     score = metrics.silhouette_score(sample_df[features],
-#                                       kmeans.labels_,
-#                                       metric = 'euclidean',
-#                                       sample_size = len(sample_df[features]))
-#     scores.append(score)
-#     sse.append(kmeans.inertia_)
-#     print('Number of clusters:', i)
-#     print('Silhouette score:', score)
-#     print('Inertia:', kmeans.inertia_)
-
-# plt.figure()
-# plt.plot(cluster_range, sse, '-o')
-# plt.xlabel('Number of clusters')
-# plt.ylabel('Sum of squared distance')
-# plt.show()
-
-# #####################
-# # Best: 4 centroids #
-# #####################
-# best_k = KMeans(n_clusters = 4,
-#                 init = 'k-means++',
-#                 n_init = 10,
-#                 max_iter = 300,
-#                 tol = 0.0001,
-#                 verbose = 0)
-# best_k.fit(df[features])
-
-# centers = best_k.cluster_centers_
-# clusters, cluster_counts = np.unique(best_k.labels_, return_counts = True)
-
-# print('\n--- Cluster centers ---\n{}'.format(
-#       pd.DataFrame(data = centers, columns = features)))
-# print('\n--- Cluster counts ---\n{}'.format(
-#       pd.DataFrame(data = cluster_counts,
-#                    columns = ['Counts'],
-#                    index = clusters)))
-
 ################
 # Top stations #
 ################
-def top_stations(df, n):
+def top_stations(df, n, show = True):
     '''
     Parameters
     ----------
@@ -290,10 +171,11 @@ def top_stations(df, n):
     n: number of top stations to look at
         Finds top starting and ending stations
         Plots top starting and ending stations
+    show: whether to print out (default: True)
 
     Returns
     -------
-    N/A
+    top_start_stations, top_end_stations
     
     '''
     station_ids = get_station_ids(df)
@@ -301,13 +183,18 @@ def top_stations(df, n):
     top_start_stations = df['start station id'].value_counts()[:n]
     top_end_stations = df['end station id'].value_counts()[:n]
     
-    print('\n--- Top {} Starting Stations ---'.format(n))
-    [print('{}. {}'.format(
-     i, station_ids[j])) for i, j in enumerate(top_start_stations.index, 1)]
+    if show:
+        print('\n--- Top {} Starting Stations ---'.format(n))
+        [print('{}. [{}] {}'.format(
+         i, j, station_ids[j]))
+         for i, j in enumerate(top_start_stations.index, 1)]
+        
+        print('\n--- Top {} Ending Stations ---'.format(n))
+        [print('{}. [{}] {}'.format(
+         i, j, station_ids[j]))
+         for i, j in enumerate(top_end_stations.index, 1)]
     
-    print('\n--- Top {} Ending Stations ---'.format(n))
-    [print('{}. {}'.format(
-     i, station_ids[j])) for i, j in enumerate(top_end_stations.index, 1)]
+    return top_start_stations, top_end_stations
 
 ######################
 # Most traveled days #
@@ -396,7 +283,91 @@ def rides_by_gender(df):
                       xaxis_title = 'Gender',
                       yaxis_title = 'Total Rides')
     plot(fig)
+
+##########################
+# Directed network graph #
+##########################
+def network_graph(df, n):
+    '''
+    Parameters
+    ----------
+    df: adjusted dataframe
+    n: (int) number of rides to plot
+
+    Returns
+    -------
+    network graph of top n routes
+    '''
+    grouped = df.groupby(['start station id', 'end station id']).count()\
+                     ['tripduration']
+    grouped = grouped.nlargest(n)
     
+    station_numbers = set()
+    edges = []
+    for i in grouped.index:
+        edges.append(i)
+        station_numbers.update(i)
+    
+    station_ids = get_station_ids(df)
+    labels = ['{}: {}'.format(num, station_ids[num])
+              for num in sorted(list(station_numbers))]
+    
+    G = nx.DiGraph()
+    G.add_nodes_from(station_numbers)
+    G.add_edges_from(edges)
+    
+    pos = nx.layout.circular_layout(G)
+    M = G.number_of_edges()
+    edge_colors = range(2, M + 2)
+    edge_alphas = [(5 + i) / (M + 4) for i in range(M)]
+    
+    fig = plt.figure(figsize = (15, 15))
+    nodes = nx.draw_networkx_nodes(G,
+                                   pos,
+                                   node_size = 5,
+                                   node_color = 'black')
+    edges = nx.draw_networkx_edges(G,
+                                   pos,
+                                   node_size = 5,
+                                   arrowstyle = '-|>',
+                                   arrowsize = 20,
+                                   edge_color = edge_colors,
+                                   edge_cmap = plt.cm.rainbow,
+                                   width = 2)
+    
+    for i in range(M):
+        edges[i].set_alpha(edge_alphas[i])
+    pc = mpl.collections.PatchCollection(edges,
+                                         cmap = plt.cm.rainbow)
+    pc.set_array(edge_colors)
+    cbar = plt.colorbar(pc,
+                        fraction = 0.04,
+                        pad = 0.01)
+    cbar.ax.tick_params(labelsize = 20) 
+    nx.draw_networkx_labels(G,
+                            pos,
+                            font_size = 20)
+    
+    ax = plt.gca()
+    ax.set_axis_off()
+    leg = ax.legend(labels = labels,
+                    loc='upper center',
+                    bbox_to_anchor = (0.5, -0.05),
+                    shadow = True,
+                    ncol = 2,
+                    handlelength = 0,
+                    handletextpad = 0,
+                    fancybox = True)
+    for item in leg.legendHandles:
+        item.set_visible(False)
+    leg.get_frame().set_facecolor('deepskyblue')
+    plt.axis('equal')
+    plt.title('Top {} Blue Bike Routes'.format(n),
+              fontdict = {'fontsize': 25,
+                          'fontweight': 'bold'},
+              pad = -25)
+    plt.show()
+
 #################
 # DATA ANALYSIS #
 #################
@@ -420,88 +391,35 @@ features = ['tripduration',
 print('\n--- Descriptive Statistics ---')
 print(df[features].describe().to_string())
 
-######################
-# Scatterplot Matrix #
-######################
-# sns.pairplot(sample_df[features])
+################
+# Top stations #
+################
+top_start_stations, top_end_stations = top_stations(df, 5, True)
 
-top_stations(df, 5)
+#########
+# Plots #
+#########
 most_traveled_months(df)
 most_traveled_days(df)
 most_traveled_times(df)
 rides_by_gender(df)
+network_graph(df, 100)
 
-##################
-# DIRECTED GRAPH #
-##################
-top_start_stations = df['start station id'].value_counts()[:25]
-top_end_stations = df['end station id'].value_counts()[:25]
-top_stations = set(top_start_stations.index.append(top_end_stations.index))
+#################
+# Bike stations #
+#################
+sta_df = pd.read_csv('Data/current_bluebikes_stations.csv', skiprows = 1)
 
-grouped = df.groupby(['start station id', 'end station id']).count()\
-                     ['tripduration']
-grouped = grouped.nlargest(100)
-trip_direction = grouped.index
+station_ids = get_station_ids(df)
 
-station_numbers = set()
-edges = []
-for i in grouped.index:
-    edges.append(i)
-    station_numbers.update(i)
+top_start_stations, top_end_stations = top_stations(df, 25, False)
+top_overall = set(top_start_stations.index.append(top_end_stations.index))
 
-station_names = get_station_ids(df)
-labels = ['{}: {}'.format(num, station_names[num])
-          for num in sorted(list(station_numbers))]
+# TODO join dataframes
+top_start_df = pd.DataFrame(top_start_stations).reset_index()
+top_start_df.columns = ['id', 'rides']
+top_start_df['station_name'] = top_start_df['id'].apply(lambda x: station_ids[x])
 
-G = nx.DiGraph()
-G.add_nodes_from(station_numbers)
-G.add_edges_from(edges)
-
-pos = nx.layout.circular_layout(G)
-M = G.number_of_edges()
-edge_colors = range(2, M + 2)
-edge_alphas = [(5 + i) / (M + 4) for i in range(M)]
-
-fig = plt.figure(figsize = (15, 15))
-nodes = nx.draw_networkx_nodes(G,
-                               pos,
-                               node_size = 5,
-                               node_color = 'black')
-edges = nx.draw_networkx_edges(G,
-                               pos,
-                               node_size = 5,
-                               arrowstyle = '-|>',
-                               arrowsize = 20,
-                               edge_color = edge_colors,
-                               edge_cmap = plt.cm.rainbow,
-                               width = 2)
-
-for i in range(M):
-    edges[i].set_alpha(edge_alphas[i])
-pc = mpl.collections.PatchCollection(edges,
-                                     cmap = plt.cm.rainbow)
-pc.set_array(edge_colors)
-cbar = plt.colorbar(pc,
-                    fraction = 0.04,
-                    pad = 0.01)
-cbar.ax.tick_params(labelsize = 20) 
-nx.draw_networkx_labels(G,
-                        pos,
-                        font_size = 20)
-
-ax = plt.gca()
-ax.set_axis_off()
-leg = ax.legend(labels = labels,
-                loc='upper center',
-                bbox_to_anchor = (0.5, -0.05),
-                shadow = True,
-                ncol = 2,
-                handlelength = 0,
-                handletextpad = 0,
-                fancybox = True)
-for item in leg.legendHandles:
-    item.set_visible(False)
-plt.axis('equal')
-plt.title('Top 100 Blue Bike Routes',
-          fontdict = {'fontsize': 25})
-plt.show()
+# TODO you are looking at how many docks are at each station
+# TODO maybe rides per station vs docks?
+    
