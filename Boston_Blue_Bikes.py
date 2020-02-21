@@ -399,6 +399,7 @@ top_start_stations, top_end_stations = top_stations(df, 5, True)
 #########
 # Plots #
 #########
+# TODO make these into a 2x2
 most_traveled_months(df)
 most_traveled_days(df)
 most_traveled_times(df)
@@ -417,8 +418,44 @@ top_overall = set(top_start_stations.index.append(top_end_stations.index))
 
 # TODO join dataframes
 top_start_df = pd.DataFrame(top_start_stations).reset_index()
-top_start_df.columns = ['id', 'rides']
-top_start_df['station_name'] = top_start_df['id'].apply(lambda x: station_ids[x])
+top_start_df.columns = ['ID', 'Rides']
+top_start_df['Name'] = top_start_df['ID'].apply(lambda x: station_ids[x])
+top_start_df = top_start_df.join(sta_df.set_index('Name'), on = 'Name')
+
+# Beacon St at Massachusetts Ave has 0 docks. Delete, but worth investigating
+top_start_df = top_start_df[top_start_df['Total docks'] != 0]
+top_start_df['Rides per dock'] = \
+    top_start_df.apply(lambda x: x['Rides']/x['Total docks'], axis = 1)
+top_start_df = top_start_df.sort_values(by = 'ID')
+
+# PLOT
+fig = plt.figure(figsize = (15, 15))
+top_start_df.plot(x = 'ID', y = 'Rides per dock', kind = 'barh')
+plt.title('Rides per Dock')
+
+# LEGEND
+station_numbers = set()
+for i in top_start_df['ID']:
+    station_numbers.add(i)
+
+station_ids = get_station_ids(df)
+labels = ['{}: {}'.format(num, station_ids[num])
+          for num in sorted(list(station_numbers))]
+
+ax = plt.gca()
+leg = ax.legend(labels = labels,
+                loc='upper center',
+                bbox_to_anchor = (0.5, -0.05),
+                shadow = True,
+                ncol = 2,
+                handlelength = 0,
+                handletextpad = 0,
+                fancybox = True)
+for item in leg.legendHandles:
+    item.set_visible(False)
+leg.get_frame().set_facecolor('deepskyblue')
+
+plt.show()
 
 # TODO you are looking at how many docks are at each station
 # TODO maybe rides per station vs docks?
