@@ -443,7 +443,7 @@ labels = ['{}: {}'.format(num, station_ids[num])
           for num in sorted(list(station_numbers))]
 
 ax = plt.gca()
-leg = ax.legend(labels = labels,
+leg = plt.legend(labels = labels,
                 loc='upper center',
                 bbox_to_anchor = (0.5, -0.05),
                 shadow = True,
