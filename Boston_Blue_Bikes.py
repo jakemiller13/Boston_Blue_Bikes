@@ -13,7 +13,6 @@ import plotly.express as px
 from plotly.offline import plot
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-import seaborn as sns
 
 # Set seed
 np.random.seed(42)
@@ -214,10 +213,9 @@ def plot_legend(df, sta_nums):
     
     '''
     station_ids = get_station_ids(df)
-    labels = ['{}: {}'.format(num, station_ids[num])
-              for num in sorted(list(sta_nums))]
-
-    leg = plt.legend(labels = labels,
+    label = ['{}: {}'.format(num, station_ids[num])
+             for num in sorted(list(sta_nums))]
+    leg = plt.legend(labels = label,
                      loc = 'upper center',
                      bbox_to_anchor = (0.5, -0.05),
                      shadow = True,
@@ -228,7 +226,7 @@ def plot_legend(df, sta_nums):
     for item in leg.legendHandles:
         item.set_visible(False)
     leg.get_frame().set_facecolor('lightblue')
-
+    
 ######################
 # Most traveled days #
 ######################
@@ -401,12 +399,13 @@ def rides_per_dock(df, sta_df, n):
 
     Returns
     -------
-    bar chart of rides per station for top n stations
+    bar chart of rides per station for top n -ending- stations
     '''
     station_ids = get_station_ids(df)
     
     # Concatenate top starting/ending stations on station ID
-    top_df = pd.concat(top_stations(df, n, False), axis = 1).reset_index()
+    top_df = pd.concat(top_stations(df, -1, False), axis = 1).reset_index()
+    top_df = top_df.nlargest(n, 'end station id')
     top_df.columns = ['ID', 'Start rides', 'End rides']
     
     # Station_df uses names instead of numbers, so need to join on names
@@ -421,48 +420,44 @@ def rides_per_dock(df, sta_df, n):
         top_df.apply(lambda x: x['Start rides']/x['Total docks'], axis = 1)
     top_df['Ending rides per dock'] = \
         top_df.apply(lambda x: x['End rides']/x['Total docks'], axis = 1)
-    top_df = top_df.sort_values(by = 'Ending rides per dock',
-                                            ascending = False)
+    top_df = top_df.sort_values(by = 'Ending rides per dock')
     
-    # Need to get order before melting
-    order = top_df['ID'].reset_index(drop = True)
-    
-    # Melt dataframe together over ID
-    top_df = top_df[['ID', 'Starting rides per dock',
-                     'Ending rides per dock']].\
-                     melt('ID',
-                          var_name = 'Start/End',
-                          value_name = 'Rides per dock')
+    # Pull out useful columns
+    top_df = top_df[['ID', 'Ending rides per dock',
+                     'Starting rides per dock']].set_index('ID')
     
     # Plot
-    plt.figure(figsize = (15, 15))
-    sns.barplot(data = top_df,
-                x = 'Rides per dock',
-                y = 'ID',
-                hue = 'Start/End',
-                order = order,
-                orient = 'h',
-                palette = 'Set1')
+    top_df.plot(figsize = (15, 15),
+                kind = 'barh',
+                colormap = 'coolwarm',
+                zorder = 2)
     plt.title('Rides per Dock',
               fontdict = {'fontsize': 25,
                           'fontweight': 'bold'},
               pad = -25)
-    plt.ylabel('Station Number')
+    plt.xlabel('Rides', fontsize = 15)
+    plt.ylabel('Station Number', fontsize = 15)
     plt.grid(which = 'major', axis = 'x')
+    plt.tick_params(axis = 'both', labelsize = '15')
 
     # Shade every other station
-    for i, j in enumerate(order):
+    for i, j in enumerate(top_df.index):
         if i % 2 == 0:
-            plt.axhspan(top_df[top_df['ID'] == j].iloc[0],
-                    #j - 0.5, j + 1.5,
-                        facecolor = 'gray',
-                        alpha = 0.2)
+            plt.axhspan(i - 0.5,
+                        i + 0.5,
+                        facecolor = 'k',
+                        alpha = 0.3,
+                        zorder = 1)
     
     # Plot 2 legends
-    plt.gca().add_artist(plt.legend())
+    ax = plt.gca()
+    ax.add_artist(plt.legend(loc = 'lower right'))
     station_numbers = set()
-    for i in top_df['ID']:
+    for i in top_df.index:
         station_numbers.add(i)
+        
+    print(station_numbers)
+        
     plot_legend(df, station_numbers)
     plt.show()
 
