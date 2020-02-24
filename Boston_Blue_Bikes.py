@@ -13,6 +13,7 @@ import plotly.express as px
 from plotly.offline import plot
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 # Set seed
 np.random.seed(42)
@@ -110,8 +111,8 @@ def get_station_ids(df):
                id_df['start station name'].loc[i]
                for i in range(id_df.shape[0])}
     
-    return id_dict
-    
+    return id_dict    
+
 #######################
 # Setup other columns #
 #######################
@@ -124,7 +125,7 @@ def setup_dataframe(df):
 
     Returns
     -------
-    Adjusted dataframe
+    adjusted dataframe
     
     '''
     # Ride start hour
@@ -195,6 +196,38 @@ def top_stations(df, n, show = True):
          for i, j in enumerate(top_end_stations.index, 1)]
     
     return top_start_stations, top_end_stations
+
+###############################
+# Plots and related functions #
+###############################
+def plot_legend(df, sta_nums):
+    '''
+    Parameters
+    ----------
+    df: adjusted dataframe
+    sta_nums: set of station numbers to be plotted
+        
+    Returns
+    -------
+    Nothing.
+    Adds consistent stylized legend with station IDs/names to graphs.
+    
+    '''
+    station_ids = get_station_ids(df)
+    labels = ['{}: {}'.format(num, station_ids[num])
+              for num in sorted(list(sta_nums))]
+
+    leg = plt.legend(labels = labels,
+                     loc = 'upper center',
+                     bbox_to_anchor = (0.5, -0.05),
+                     shadow = True,
+                     ncol = 2,
+                     handlelength = 0,
+                     handletextpad = 0,
+                     fancybox = True)
+    for item in leg.legendHandles:
+        item.set_visible(False)
+    leg.get_frame().set_facecolor('lightblue')
 
 ######################
 # Most traveled days #
@@ -308,10 +341,6 @@ def network_graph(df, n):
         edges.append(i)
         station_numbers.update(i)
     
-    station_ids = get_station_ids(df)
-    labels = ['{}: {}'.format(num, station_ids[num])
-              for num in sorted(list(station_numbers))]
-    
     G = nx.DiGraph()
     G.add_nodes_from(station_numbers)
     G.add_edges_from(edges)
@@ -321,7 +350,7 @@ def network_graph(df, n):
     edge_colors = range(2, M + 2)
     edge_alphas = [(5 + i) / (M + 4) for i in range(M)]
     
-    fig = plt.figure(figsize = (15, 15))
+    plt.figure(figsize = (15, 15))
     nodes = nx.draw_networkx_nodes(G,
                                    pos,
                                    node_size = 5,
@@ -350,22 +379,91 @@ def network_graph(df, n):
     
     ax = plt.gca()
     ax.set_axis_off()
-    leg = ax.legend(labels = labels,
-                    loc='upper center',
-                    bbox_to_anchor = (0.5, -0.05),
-                    shadow = True,
-                    ncol = 2,
-                    handlelength = 0,
-                    handletextpad = 0,
-                    fancybox = True)
-    for item in leg.legendHandles:
-        item.set_visible(False)
-    leg.get_frame().set_facecolor('deepskyblue')
+    plot_legend(df, station_numbers)
     plt.axis('equal')
     plt.title('Top {} Blue Bike Routes'.format(n),
               fontdict = {'fontsize': 25,
                           'fontweight': 'bold'},
               pad = -25)
+    plt.show()
+
+#######################
+# Plot rides per dock #
+#######################
+def rides_per_dock(df, sta_df, n):
+    '''
+    Parameters
+    ----------
+    df: adjusted dataframe
+    station_df: dataframe with station names and total docks
+    n: (int) number of stations to look at
+    start: (bool) whether to look at starting (default) or ending stations
+
+    Returns
+    -------
+    bar chart of rides per station for top n stations
+    '''
+    station_ids = get_station_ids(df)
+    
+    # Concatenate top starting/ending stations on station ID
+    top_df = pd.concat(top_stations(df, n, False), axis = 1).reset_index()
+    top_df.columns = ['ID', 'Start rides', 'End rides']
+    
+    # Station_df uses names instead of numbers, so need to join on names
+    top_df['Name'] = top_df['ID'].apply(lambda x: station_ids[x])
+    top_df = top_df.join(sta_df.set_index('Name'), on = 'Name')
+    
+    # Some stations have 0 docks. Delete, but worth investigating separately
+    top_df = top_df[top_df['Total docks'] != 0]
+    
+    # Calculate rides per dock for starting/ending stations
+    top_df['Starting rides per dock'] = \
+        top_df.apply(lambda x: x['Start rides']/x['Total docks'], axis = 1)
+    top_df['Ending rides per dock'] = \
+        top_df.apply(lambda x: x['End rides']/x['Total docks'], axis = 1)
+    top_df = top_df.sort_values(by = 'Ending rides per dock',
+                                            ascending = False)
+    
+    # Need to get order before melting
+    order = top_df['ID'].reset_index(drop = True)
+    
+    # Melt dataframe together over ID
+    top_df = top_df[['ID', 'Starting rides per dock',
+                     'Ending rides per dock']].\
+                     melt('ID',
+                          var_name = 'Start/End',
+                          value_name = 'Rides per dock')
+    
+    # Plot
+    plt.figure(figsize = (15, 15))
+    sns.barplot(data = top_df,
+                x = 'Rides per dock',
+                y = 'ID',
+                hue = 'Start/End',
+                order = order,
+                orient = 'h',
+                palette = 'Set1')
+    plt.title('Rides per Dock',
+              fontdict = {'fontsize': 25,
+                          'fontweight': 'bold'},
+              pad = -25)
+    plt.ylabel('Station Number')
+    plt.grid(which = 'major', axis = 'x')
+
+    # Shade every other station
+    for i, j in enumerate(order):
+        if i % 2 == 0:
+            plt.axhspan(top_df[top_df['ID'] == j].iloc[0],
+                    #j - 0.5, j + 1.5,
+                        facecolor = 'gray',
+                        alpha = 0.2)
+    
+    # Plot 2 legends
+    plt.gca().add_artist(plt.legend())
+    station_numbers = set()
+    for i in top_df['ID']:
+        station_numbers.add(i)
+    plot_legend(df, station_numbers)
     plt.show()
 
 #################
@@ -378,23 +476,23 @@ df, df_copy = load_data()
 df = setup_dataframe(df)
 remove_outliers(df)
 
-####################################
-# Quantitative features to look at #
-####################################
-features = ['tripduration',
-            'start_hour',
-            'birth year']
-
 ##########################
 # Descriptive statistics #
 ##########################
 print('\n--- Descriptive Statistics ---')
-print(df[features].describe().to_string())
+print(df.describe())
 
 ################
 # Top stations #
 ################
 top_start_stations, top_end_stations = top_stations(df, 5, True)
+
+#################
+# Bike stations #
+#################
+station_df = pd.read_csv('Data/current_bluebikes_stations.csv', skiprows = 1)
+print()
+print(station_df.head())
 
 #########
 # Plots #
@@ -405,58 +503,4 @@ most_traveled_days(df)
 most_traveled_times(df)
 rides_by_gender(df)
 network_graph(df, 100)
-
-#################
-# Bike stations #
-#################
-sta_df = pd.read_csv('Data/current_bluebikes_stations.csv', skiprows = 1)
-
-station_ids = get_station_ids(df)
-
-top_start_stations, top_end_stations = top_stations(df, 25, False)
-top_overall = set(top_start_stations.index.append(top_end_stations.index))
-
-# TODO join dataframes
-top_start_df = pd.DataFrame(top_start_stations).reset_index()
-top_start_df.columns = ['ID', 'Rides']
-top_start_df['Name'] = top_start_df['ID'].apply(lambda x: station_ids[x])
-top_start_df = top_start_df.join(sta_df.set_index('Name'), on = 'Name')
-
-# Beacon St at Massachusetts Ave has 0 docks. Delete, but worth investigating
-top_start_df = top_start_df[top_start_df['Total docks'] != 0]
-top_start_df['Rides per dock'] = \
-    top_start_df.apply(lambda x: x['Rides']/x['Total docks'], axis = 1)
-top_start_df = top_start_df.sort_values(by = 'ID')
-
-# PLOT
-fig = plt.figure(figsize = (15, 15))
-top_start_df.plot(x = 'ID', y = 'Rides per dock', kind = 'barh')
-plt.title('Rides per Dock')
-
-# LEGEND
-station_numbers = set()
-for i in top_start_df['ID']:
-    station_numbers.add(i)
-
-station_ids = get_station_ids(df)
-labels = ['{}: {}'.format(num, station_ids[num])
-          for num in sorted(list(station_numbers))]
-
-ax = plt.gca()
-leg = plt.legend(labels = labels,
-                loc='upper center',
-                bbox_to_anchor = (0.5, -0.05),
-                shadow = True,
-                ncol = 2,
-                handlelength = 0,
-                handletextpad = 0,
-                fancybox = True)
-for item in leg.legendHandles:
-    item.set_visible(False)
-leg.get_frame().set_facecolor('deepskyblue')
-
-plt.show()
-
-# TODO you are looking at how many docks are at each station
-# TODO maybe rides per station vs docks?
-    
+rides_per_dock(df, station_df, 25)
