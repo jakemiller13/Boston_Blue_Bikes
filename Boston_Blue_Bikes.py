@@ -9,8 +9,6 @@ import pandas as pd
 import numpy as np
 import os
 import networkx as nx
-import plotly.express as px
-from plotly.offline import plot
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
@@ -196,6 +194,34 @@ def top_stations(df, n, show = True):
     
     return top_start_stations, top_end_stations
 
+#####################
+# Print top n trips #
+#####################
+def top_trips(df, n):
+    '''
+    Parameters
+    ----------
+    df: adjusted dataframe
+    n (int): number of top trips to print
+        
+    Returns
+    -------
+    Prints top n trips
+    
+    '''
+    station_ids = get_station_ids(df)
+    grouped = df.groupby(['start station id', 'end station id']).count()\
+                 ['tripduration']
+    grouped = grouped.nlargest(n)
+    
+    edges = []
+    for i in grouped.index:
+        edges.append(i)
+    for num, (i, j) in enumerate(edges, 1):
+        print('{}: [{}] {} to [{}] {}'.format(num,
+                                              i, station_ids[i],
+                                              j, station_ids[j]))
+
 ###############################
 # Plots and related functions #
 ###############################
@@ -213,9 +239,12 @@ def plot_legend(df, sta_nums):
     
     '''
     station_ids = get_station_ids(df)
-    label = ['{}: {}'.format(num, station_ids[num])
-             for num in sorted(list(sta_nums))]
-    leg = plt.legend(labels = label,
+    handles = [mpl.patches.Patch(facecolor = 'k',
+                                 edgecolor = 'k',
+                                 label = '{}: {}'.format(num,
+                                                         station_ids[num]))
+               for num in sorted(list(sta_nums))]
+    leg = plt.legend(handles = handles,
                      loc = 'upper center',
                      bbox_to_anchor = (0.5, -0.05),
                      shadow = True,
@@ -334,6 +363,7 @@ def rides_by_gender(df, ax):
     ax.grid(axis = 'y', zorder = 1)
     ax.tick_params(axis = 'x', labelrotation = 0)
     ax.set_xticks([0, 1, 2])
+    ax.set_xticklabels(['Male', 'Female', 'Prefer not to say'])
     ax.set_xlabel('Gender')
     ax.set_ylabel('Total Rides')
     ax.set_title('Total Rides per Gender')
@@ -381,14 +411,15 @@ def network_graph(df, n):
     grouped = grouped.nlargest(n)
     
     station_numbers = set()
-    edges = []
+    edge_collection = []
+    weights = []
     for i in grouped.index:
-        edges.append(i)
+        edge_collection.append(i)
+        weights.append(grouped[i])
         station_numbers.update(i)
     
     G = nx.DiGraph()
     G.add_nodes_from(station_numbers)
-    G.add_edges_from(edges)
     
     pos = nx.layout.circular_layout(G)
     M = G.number_of_edges()
@@ -405,7 +436,8 @@ def network_graph(df, n):
                                    node_size = 5,
                                    arrowstyle = '-|>',
                                    arrowsize = 20,
-                                   edge_color = edge_colors,
+                                   edgelist = edge_collection,
+                                   edge_color = weights,
                                    edge_cmap = plt.cm.rainbow,
                                    width = 2)
     
@@ -492,8 +524,7 @@ def rides_per_dock(df, sta_df, n):
         if i % 2 == 0:
             plt.axhspan(i - 0.5,
                         i + 0.5,
-                        facecolor = 'k',
-                        alpha = 0.3,
+                        facecolor = 'lightgray',
                         zorder = 1)
     
     # Plot 2 legends
@@ -502,9 +533,6 @@ def rides_per_dock(df, sta_df, n):
     station_numbers = set()
     for i in top_df.index:
         station_numbers.add(i)
-        
-    print(station_numbers)
-        
     plot_legend(df, station_numbers)
     plt.show()
 
@@ -516,13 +544,17 @@ def rides_per_dock(df, sta_df, n):
 ##############################
 df, df_copy = load_data()
 df = setup_dataframe(df)
-remove_outliers(df)
+df = remove_outliers(df)
 
-##########################
-# Descriptive statistics #
-##########################
+################
+# Explore Data #
+################
+print('\n--- Preview of Data Set ---')
+print(df.head())
+print('\n--- Example Entry ---')
+print(df.iloc[0])
 print('\n--- Descriptive Statistics ---')
-print(df.describe())
+print(df.describe().T)
 
 ################
 # Top stations #
@@ -539,10 +571,6 @@ print(station_df.head())
 #########
 # Plots #
 #########
-# TODO make these into a 2x2
-most_traveled_months(df)
-most_traveled_days(df)
-most_traveled_times(df)
-rides_by_gender(df)
+matrix_plot()
 network_graph(df, 100)
-rides_per_dock(df, station_df, 25)
+rides_per_dock(df, station_df, 10)
