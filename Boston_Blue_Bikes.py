@@ -227,10 +227,10 @@ def plot_legend(df, sta_nums):
         item.set_visible(False)
     leg.get_frame().set_facecolor('lightblue')
     
-######################
-# Most traveled days #
-######################
-def most_traveled_months(df):
+########################
+# Most traveled months #
+########################
+def most_traveled_months(df, ax):
     '''
     Parameters
     ----------
@@ -241,18 +241,24 @@ def most_traveled_months(df):
     bar chart of most traveled months
     '''
     months, rides = np.unique(df['start_month'], return_counts = True)
-    fig = px.bar(x = [get_month(month) for month in months],
-                 y = rides,
-                 color = rides)
-    fig.update_layout(title = 'Total Rides per Month',
-                      xaxis_title = 'Month',
-                      yaxis_title = 'Total Rides')
-    plot(fig)
+    
+    colors = mpl.cm.summer(rides / max(rides))
+    bar = ax.bar(x = [get_month(month) for month in months],
+                 height = rides,
+                 color = colors,
+                 zorder = 2)
+    ax.grid(axis = 'y', zorder = 1)
+    ax.tick_params(axis = 'x', labelrotation = 70)
+    ax.set_xlabel('Month')
+    ax.set_ylabel('Total Rides')
+    ax.set_title('Total Rides per Month')
+    ax.set_facecolor('lightgray')
+    return bar
 
 ######################
 # Most traveled days #
 ######################
-def most_traveled_days(df):
+def most_traveled_days(df, ax):
     '''
     Parameters
     ----------
@@ -263,18 +269,24 @@ def most_traveled_days(df):
     bar chart of most traveled days
     '''
     days, rides = np.unique(df['start_day'], return_counts = True)
-    fig = px.bar(x = [get_weekday(day) for day in days],
-                 y = rides,
-                 color = rides)
-    fig.update_layout(title = 'Total Rides per Day',
-                      xaxis_title = 'Weekday',
-                      yaxis_title = 'Total Rides')
-    plot(fig)
+    
+    colors = mpl.cm.summer(rides / max(rides))
+    bar = ax.bar(x = [get_weekday(day) for day in days],
+                 height = rides,
+                 color = colors,
+                 zorder = 2)
+    ax.grid(axis = 'y', zorder = 1)
+    ax.tick_params(axis = 'x', labelrotation = 70)
+    ax.set_xlabel('Day of Week')
+    ax.set_ylabel('Total Rides')
+    ax.set_title('Total Rides per Day')
+    ax.set_facecolor('lightgray')
+    return bar
 
 #######################
 # Most traveled times #
 #######################
-def most_traveled_times(df):
+def most_traveled_times(df, ax):
     '''
     Parameters
     ----------
@@ -285,18 +297,24 @@ def most_traveled_times(df):
     bar chart of most traveled hours
     '''
     hours, rides = np.unique(df['start_hour'], return_counts = True)
-    fig = px.bar(x = hours,
-                 y = rides,
-                 color = rides)
-    fig.update_layout(title = 'Total Rides per Hour',
-                      xaxis_title = 'Hour of the Day',
-                      yaxis_title = 'Total Rides')
-    plot(fig)
+    
+    colors = mpl.cm.summer(rides / max(rides))
+    bar = ax.bar(x = hours,
+                 height = rides,
+                 color = colors,
+                 zorder = 2)
+    ax.grid(axis = 'y', zorder = 1)
+    ax.set_xlabel('Hour of the Day')
+    ax.set_ylabel('Total Rides')
+    ax.set_xticks(np.arange(0, 23, 3))
+    ax.set_title('Total Rides per Hour')
+    ax.set_facecolor('lightgray')
+    return bar
 
 ###################
 # Rides by gender #
 ###################
-def rides_by_gender(df):
+def rides_by_gender(df, ax):
     '''
     Parameters
     ----------
@@ -307,13 +325,42 @@ def rides_by_gender(df):
     bar chart of rides by gender
     '''
     gender, rides = np.unique(df['gender'], return_counts = True)
-    fig = px.bar(x = gender,
-                 y = rides,
-                 color = rides)
-    fig.update_layout(title = 'Total Rides per Gender',
-                      xaxis_title = 'Gender',
-                      yaxis_title = 'Total Rides')
-    plot(fig)
+    
+    colors = mpl.cm.summer(rides / max(rides))
+    bar = ax.bar(x = gender,
+                 height = rides,
+                 color = colors,
+                 zorder = 2)
+    ax.grid(axis = 'y', zorder = 1)
+    ax.tick_params(axis = 'x', labelrotation = 0)
+    ax.set_xticks([0, 1, 2])
+    ax.set_xlabel('Gender')
+    ax.set_ylabel('Total Rides')
+    ax.set_title('Total Rides per Gender')
+    ax.set_facecolor('lightgray')
+    return bar
+
+################
+# Matrix plots #
+################
+def matrix_plot():
+    '''
+    Parameters
+    ----------
+    df: adjusted dataframe
+
+    Returns
+    -------
+    2 x 2 subplots
+    '''
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(nrows = 2,
+                                                 ncols = 2,
+                                                 figsize = (15, 15))
+    most_traveled_months(df, ax1)
+    most_traveled_days(df, ax2)
+    most_traveled_times(df, ax3)
+    rides_by_gender(df, ax4)
+    plt.tight_layout()
 
 ##########################
 # Directed network graph #
