@@ -412,19 +412,15 @@ def network_graph(df, n):
     
     station_numbers = set()
     edge_collection = []
-    weights = []
     for i in grouped.index:
         edge_collection.append(i)
-        weights.append(grouped[i])
         station_numbers.update(i)
+    edge_colors = range(len(edge_collection), 0, -1)
     
     G = nx.DiGraph()
     G.add_nodes_from(station_numbers)
     
     pos = nx.layout.circular_layout(G)
-    M = G.number_of_edges()
-    edge_colors = range(2, M + 2)
-    edge_alphas = [(5 + i) / (M + 4) for i in range(M)]
     
     plt.figure(figsize = (15, 15))
     nodes = nx.draw_networkx_nodes(G,
@@ -437,12 +433,10 @@ def network_graph(df, n):
                                    arrowstyle = '-|>',
                                    arrowsize = 20,
                                    edgelist = edge_collection,
-                                   edge_color = weights,
+                                   edge_color = edge_colors,
                                    edge_cmap = plt.cm.rainbow,
                                    width = 2)
     
-    for i in range(M):
-        edges[i].set_alpha(edge_alphas[i])
     pc = mpl.collections.PatchCollection(edges,
                                          cmap = plt.cm.rainbow)
     pc.set_array(edge_colors)
