@@ -363,7 +363,7 @@ def rides_by_gender(df, ax):
     ax.grid(axis = 'y', zorder = 1)
     ax.tick_params(axis = 'x', labelrotation = 0)
     ax.set_xticks([0, 1, 2])
-    ax.set_xticklabels(['Male', 'Female', 'Prefer not to say'])
+    ax.set_xticklabels(['Prefer not to say', 'Male', 'Female'])
     ax.set_xlabel('Gender')
     ax.set_ylabel('Total Rides')
     ax.set_title('Total Rides per Gender')
